@@ -1,10 +1,28 @@
 version: '3.0'
 
 services:
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.84.0
+    container_name: collector
+    hostname: collector
+    depends_on:
+      tempo:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    command: [ "--config=/etc/collector-config.yaml" ]
+    volumes:
+      - ./collector-config-local.yaml:/etc/collector-config.yaml
+      - ./hello-app.log:/var/log/hello-app.log
+    ports:
+      - "5555:5555"
+      - "6666:6666"
+    networks:
+      - loki
 
   tempo:
-    image: grafana/tempo:1.5.0
-    command: [ "-search.enabled=true", "-config.file=/etc/tempo.yaml" ]
+    image: grafana/tempo:2.2.3
+    command: [ "-config.file=/etc/tempo.yaml" ]
     container_name: tempo
     hostname: tempo
     volumes:
@@ -13,14 +31,16 @@ services:
       - ./tempo-data:/tmp/tempo
     ports:
       - "3200:3200"
-      - "4317:4317"
+      - "4317:4317"  # otlp grpc
     healthcheck:
       interval: 5s
       retries: 10
       test: wget --no-verbose --tries=1 --spider http://localhost:3200/status || exit 1
+    networks:
+      - loki
 
   prometheus:
-    image: prom/prometheus:v2.39.2
+    image: prom/prometheus:v2.47.0
     container_name: prometheus
     hostname: prometheus
     command:
@@ -35,11 +55,25 @@ services:
       interval: 5s
       retries: 10
       test: wget --no-verbose --tries=1 --spider http://localhost:9090/status || exit 1
+    networks:
+      - loki
+
+  loki:
+    image: grafana/loki:2.9.1
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - loki
+    healthcheck:
+      interval: 5s
+      retries: 10
+      test: wget --no-verbose --tries=1 --spider http://localhost:3100/status || exit 1
 
   grafana:
-    image: grafana/grafana:9.2.2
+    image: grafana/grafana:10.0.5
     container_name: grafana
-    hostname: grafana 
+    hostname: grafana
     depends_on:
       tempo:
         condition: service_healthy
@@ -54,6 +88,8 @@ services:
       - GF_AUTH_DISABLE_LOGIN_FORM=true
     ports:
       - "3000:3000"
+    networks:
+      - loki
     healthcheck:
       interval: 5s
       retries: 10
@@ -62,3 +98,4 @@ services:
 networks:
   default:
     name: inst-java-apps-using-otel
+  loki:
