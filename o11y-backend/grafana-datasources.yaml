@@ -21,3 +21,13 @@ datasources:
   editable: false
   apiVersion: 1
   uid: tempo
+- name: Loki
+  type: loki
+  access: proxy
+  url: http://loki:3100   # Use the service name defined in your Docker Compose file
+  jsonData:
+    maxLines: 1000        # Optional: Set the maximum number of log lines to retrieve
+    minTimeRange: null    # Optional: Set the minimum time range
+  secureJsonFields: {}
+  version: 1
+  editable: true
